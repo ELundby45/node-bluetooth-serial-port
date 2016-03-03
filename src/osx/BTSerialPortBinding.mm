@@ -104,10 +104,13 @@ void BTSerialPortBinding::EIO_Write(uv_work_t *req) {
     NSString *address = [NSString stringWithCString:data->address encoding:NSASCIIStringEncoding];
     BluetoothWorker *worker = [BluetoothWorker getInstance: address];
 
-    if ([worker writeAsync: data->bufferData length: data->bufferLength toDevice: address] != kIOReturnSuccess) {
+    unsigned short bytesWriten = 0;
+
+    if ([worker writeAsync: data->bufferData length: data->bufferLength toDevice: address bytesWriten: &bytesWriten] != kIOReturnSuccess) {
         sprintf(data->errorString, "Write was unsuccessful");
+        data->result = bytesWriten;
     } else {
-        data->result = data->bufferLength;
+        data->result = bytesWriten;
     }
 
     [pool release];
@@ -122,7 +125,7 @@ void BTSerialPortBinding::EIO_AfterWrite(uv_work_t *req) {
     Local<Value> argv[2];
     if (data->errorString[0]) {
         argv[0] = Nan::Error(data->errorString);
-        argv[1] = Nan::Undefined();
+        argv[1] = Nan::New<v8::Integer>((int32_t)data->result);
     } else {
         argv[0] = Nan::Undefined();
         argv[1] = Nan::New<v8::Integer>((int32_t)data->result);
