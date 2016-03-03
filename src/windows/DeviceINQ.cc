@@ -288,9 +288,107 @@ NAN_METHOD(DeviceINQ::ListPairedDevices) {
         Nan::ThrowTypeError("First argument must be a function");
     }
     Local<Function> cb = info[0].As<Function>();
-    Local<Array> resultArray = Local<Array>(Nan::New<Array>());
 
-    // TODO: build an array of objects representing a paired device:
+    // Construct windows socket bluetooth variables
+	const DWORD flags = LUP_CONTAINERS | LUP_RETURN_NAME | LUP_RETURN_ADDR;
+	DWORD querySetSize = sizeof(WSAQUERYSET);
+	WSAQUERYSET *querySet = (WSAQUERYSET *)malloc(querySetSize);
+	if (querySet == nullptr) {
+		Nan::ThrowTypeError("Out of memory: Unable to allocate memory resource for inquiry");
+	}
+
+	ZeroMemory(querySet, querySetSize);
+	querySet->dwSize = querySetSize;
+	querySet->dwNameSpace = NS_BTH;
+
+	std::vector<std::vector<Local<String>>> devices;
+	std::vector<int> channels;
+
+	// Initiate client device inquiry
+	HANDLE lookupServiceHandle;
+	int lookupServiceError = WSALookupServiceBegin(querySet, flags, &lookupServiceHandle);
+	if (lookupServiceError != SOCKET_ERROR) {
+		// Iterate over each found bluetooth service
+		bool inquiryComplete = false;
+		while (!inquiryComplete) {
+			// For each bluetooth service retrieve its corresponding details
+			lookupServiceError = WSALookupServiceNext(lookupServiceHandle, flags, &querySetSize, querySet);
+			if (lookupServiceError != SOCKET_ERROR) {
+				char address[40] = { 0 };
+				DWORD addressLength = _countof(address);
+				SOCKADDR_BTH *bluetoothSocketAddress = (SOCKADDR_BTH *)querySet->lpcsaBuffer->RemoteAddr.lpSockaddr;
+				BTH_ADDR bluetoothAddress = bluetoothSocketAddress->btAddr;
+
+				// Emit the corresponding event if we were able to retrieve the address
+				int addressToStringError = WSAAddressToString(querySet->lpcsaBuffer->RemoteAddr.lpSockaddr,
+					sizeof(SOCKADDR_BTH),
+					nullptr,
+					address,
+					&addressLength);
+				if (addressToStringError != SOCKET_ERROR) {
+					// Strip any leading and trailing parentheses is encountered
+					char strippedAddress[19] = { 0 };
+					auto addressString = sscanf_s(address, "(" "%18[^)]" ")", strippedAddress) == 1
+						? Nan::New(strippedAddress).ToLocalChecked()
+						: Nan::New(address).ToLocalChecked();
+					std::vector<Local<String>> device;
+
+					device.push_back(addressString);
+					if (querySet->lpszServiceInstanceName == NULL || querySet->lpszServiceInstanceName[0] == 0)
+					{//If the device name doesn't exist, use the addressString instead
+						device.push_back(addressString);
+					}
+					else
+					{
+						device.push_back(Nan::New(querySet->lpszServiceInstanceName).ToLocalChecked()->ToString());
+					}
+
+					if (SerialPortServiceClass_UUID == bluetoothSocketAddress->serviceClassId)
+					{
+						channels.push_back(bluetoothSocketAddress->port);
+					}
+					else
+					{
+						channels.push_back(-1);
+					}
+
+					devices.push_back(device);
+				}
+			}
+			else {
+				int lookupServiceErrorNumber = WSAGetLastError();
+				if (lookupServiceErrorNumber == WSAEFAULT) {
+					free(querySet);
+					querySet = (WSAQUERYSET *)malloc(querySetSize);
+					if (querySet == nullptr) {
+						WSALookupServiceEnd(lookupServiceHandle);
+						Nan::ThrowTypeError("Out of memory: Unable to allocate memory resource for inquiry");
+					}
+				}
+				else if (lookupServiceErrorNumber == WSA_E_NO_MORE) {
+					// No more services where found
+					inquiryComplete = true;
+				}
+				else {
+					// Unhandled error
+					inquiryComplete = true;
+				}
+			}
+		}
+	}
+	else {
+		int lookupServiceErrorNumber = WSAGetLastError();
+		if (lookupServiceErrorNumber != WSASERVICE_NOT_FOUND) {
+			free(querySet);
+			Nan::ThrowTypeError("Unable to initiate client device inquiry");
+
+		}
+	}
+
+	free(querySet);
+	WSALookupServiceEnd(lookupServiceHandle);
+
+    // build an array of objects representing a paired device:
     // ex: {
     //   name: 'MyBluetoothDeviceName',
     //   address: '12-34-56-78-90',
@@ -299,11 +397,30 @@ NAN_METHOD(DeviceINQ::ListPairedDevices) {
     //     { name: 'iAP', channel: 2 }
     //   ]
     // }
+    //Local<Array> resultArray = Local<Array>(Nan::New<Array>());
 
-    Local<Value> argv[1] = {
-        resultArray
-    };
-    cb->Call(Nan::GetCurrentContext()->Global(), 1, argv);
+	Local<Array> resultArray = Local<Array>(Nan::New<Array>(devices.size()));
 
+	for (int i = 0; i < devices.size(); i++) {
+		Local<Object> deviceObj = Nan::New<v8::Object>();
+		deviceObj->Set(Nan::New("name").ToLocalChecked(), devices.at(i).at(1));
+		deviceObj->Set(Nan::New("address").ToLocalChecked(), devices.at(i).at(0));
+
+		// A device may have multiple services, so enumerate each one
+		Local<Array> servicesArray = Nan::New<v8::Array>(1);
+		Local<Object> serviceObj = Nan::New<v8::Object>();
+		//TODO Channel should be found through SDP
+		serviceObj->Set(Nan::New("channel").ToLocalChecked(), Nan::New(1));
+		serviceObj->Set(Nan::New("name").ToLocalChecked(), Nan::New("SPP").ToLocalChecked());
+
+		servicesArray->Set(0, serviceObj);
+		deviceObj->Set(Nan::New("services").ToLocalChecked(), servicesArray);
+		resultArray->Set(i, deviceObj);
+	}
+
+	Local<Value> argv[1] = {
+		resultArray
+	};
+	cb->Call(Nan::GetCurrentContext()->Global(), 1, argv);
     return;
 }
