@@ -7,10 +7,11 @@ This node module lets you communicate over Bluetooth serial port with devices us
 
 If you have any problems make sure to [checkout the FAQ](https://github.com/eelcocramer/node-bluetooth-serial-port/issues?q=label%3AFAQ).
 
-## New in this release
+## New in the last release
 
-* Fixes a critical [runtime error](https://github.com/eelcocramer/node-bluetooth-serial-port/issues/83) on all platforms.
-* Improves travis build.
+* Adds support for node v10
+
+Check the [release notes](RELEASE_NOTES.md) for an overview of the change history.
 
 ## Pre-requests on Linux
 
@@ -18,9 +19,31 @@ If you have any problems make sure to [checkout the FAQ](https://github.com/eelc
 
 `apt-get install build-essential libbluetooth-dev`
 
-## Pre-request on OS X
+### Note on RFCOMM Server Sockets
+As the initial implementation of the RFCOMM server sockets is based on BlueZ4, in order to work with SDP we need to change the bluetoothd service configuration file by modifing the systemd unit file: bluetooth.service:
 
-* Needs XCode and XCode command line tools installed.
+(Debian based distro)
+
+`sudo vim /lib/systemd/system/bluetooth.service`
+
+(RedHat based distro)
+
+`sudo vim /usr/lib/systemd/system/bluetooth.service`
+
+and adding the --compat flag to the ExecStart value:
+
+`ExecStart=/usr/lib/bluetooth/bluetoothd `**`--compat`**
+
+Finally, restart the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+```
+
+## Pre-request on macOS
+
+* Needs Xcode and Xcode command line tools installed.
 
 ## Pre-request on Windows
 
@@ -37,7 +60,7 @@ If you have any problems make sure to [checkout the FAQ](https://github.com/eelc
 
 # Documentation
 
-## Basic usage
+## Basic client usage
 
 ```javascript
 
@@ -67,6 +90,37 @@ btSerial.on('found', function(address, name) {
 });
 
 btSerial.inquire();
+
+```
+
+## Basic server usage (only on Linux)
+
+```javascript
+var server = new(require('bluetooth-serial-port')).BluetoothSerialPortServer();
+
+var CHANNEL = 10; // My service channel. Defaults to 1 if omitted.
+var UUID = '38e851bc-7144-44b4-9cd8-80549c6f2912'; // My own service UUID. Defaults to '1101' if omitted
+
+server.on('data', function(buffer) {
+    console.log('Received data from client: ' + buffer);
+
+    // ...
+
+    console.log('Sending data to the client');
+    server.write(new Buffer('...'), function (err, bytesWritten) {
+        if (err) {
+            console.log('Error!');
+        } else {
+            console.log('Send ' + bytesWritten + ' to the client!');
+        }
+    });
+});
+
+server.listen(function (clientAddress) {
+    console.log('Client: ' + clientAddress + ' connected!');
+}, function(error){
+	console.error("Something wrong happened!:" + error);
+}, {uuid: UUID, channel: CHANNEL} );
 ```
 
 ## API
@@ -104,15 +158,16 @@ Emitted when the device inquiry execution did finish.
 
 Starts searching for bluetooth devices. When a device is found a 'found' event will be emitted.
 
+#### BluetoothSerialPort.inquireSync()
+
+Starts searching synchronously for bluetooth devices. When a device is found a 'found' event will be emitted.
+
 #### BluetoothSerialPort.findSerialPortChannel(address, callback[, errorCallback])
 
 Checks if a device has a serial port service running and if it is found it passes the channel id to use for the RFCOMM connection.
 
 * callback(channel) - called when finished looking for a serial port on the device.
 * errorCallback - called the search finished but no serial port channel was found on the device.
-
-#### BluetoothSerialPort.connect(bluetoothAddress, channel[, successCallback, errorCallback])
-
 Connects to a remote bluetooth device.
 
 * bluetoothAddress - the address of the remote Bluetooth device.
@@ -137,11 +192,85 @@ Writes a [Buffer](http://nodejs.org/api/buffer.html) to the serial port connecti
 
 #### BluetoothSerialPort.listPairedDevices(callback)
 
-__ONLY ON OSX__
+__NOT AVAILABLE ON LINUX__
 
 Lists the devices that are currently paired with the host.
 
 * callback(pairedDevices) - is called when the paired devices object has been populated. See the [pull request](https://github.com/eelcocramer/node-bluetooth-serial-port/pull/30) for more information on the `pairedDevices` object.
+
+### BluetoothSerialPortServer
+
+#### BluetoothSerialPortServer.listen(callback[, errorCallback, options])
+
+Listens for an incoming bluetooth connection. It will automatically advertise the server via SDP
+
+* callback(address) - is called when a new client is connecting.
+* errorCallback(err) - is called when an error occurs.
+* options - An object with these properties:
+  * uuid - [String] The UUID of the server. If omitted the default value will be 1101 (corresponding to Serial Port Profile UUID). Can be a 16 bit or 32 bit UUID.
+  * channel - [Number] The RFCOMM channel the server is listening on, in the range of 1-30. If omitted the default value will be 1.
+
+    Example:
+    `var options = {
+	    uuid: 'ffffffff-ffff-ffff-ffff-fffffffffff1',
+	    channel: 10
+     }`
+
+#### BluetoothSerialPortServer.write(buffer, callback)
+
+Writes data from a buffer to a connection.
+
+* buffer - the buffer to send over the connection.
+* callback(err, len) - called when the data is send or an error did occur. `error` contains the error is appropriated. `len` has the number of bytes that were written to the connection.
+
+#### BluetoothSerialPortServer.close()
+
+Stops the server
+
+#### BluetoothSerialPortServer.isOpen()
+
+Checks is a server is listening or not.
+
+#### Event: ('data', buffer)
+
+Emitted when data is read from the serial port connection.
+
+* buffer - the data that was read into a [Buffer](http://nodejs.org/api/buffer.html) object.
+
+### Event: ('closed')
+
+Emitted when a connection was closed either by the user (i.e. calling `close` or remotely).
+
+#### Event: ('failure', err)
+
+Emitted when reading from the serial port connection results in an error. The connection is closed.
+
+* err - an [Error object](http://docs.nodejitsu.com/articles/errors/what-is-the-error-object) describing the failure.
+
+## Typescript support
+
+The type script declaration file is bundled with this module so you can use it without needing to `npm install @types/bluetooth-serial-port`
+
+```typescript
+import btSerial = require("bluetooth-serial-port");
+
+btSerial.findSerialPortChannel(address: string, (channel: number) => {
+    btSerial.connect(address: string, channel: number, () => {
+        btSerial.write(new Buffer("yes"), (err) => {
+	    if (err) {
+                console.error(err);
+            }
+        });
+    }, (err?: Error) => {
+            if (err) {
+                console.error(err);
+            }
+        });
+        btSerial.on("data", (buffer: Buffer) => console.log(buffer.toString("ascii")));
+}, () => {
+        console.error("Cannot find channel!");
+});
+```
 
 ## LICENSE
 

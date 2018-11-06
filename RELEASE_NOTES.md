@@ -1,5 +1,60 @@
 ## RELEASE NOTES
 
+### 2.1.7
+
+* Adds support for node v10
+
+### 2.1.6
+
+* Fixes an issue on Windows and Linux where `close` would not terminate a connection properly.
+* Improves the README.
+
+### 2.1.5
+
+* Fixes an issue in the typescript definitions.
+* Fixes an issue where, on Windows, `listPairedDevices` is showing unpaired devices.
+
+### 2.1.4
+
+* Removes erroneous print statement
+* Adds `on` to the TypeScript declaration file
+
+### 2.1.3
+
+* Implements `listPairedDevices` on Windows
+* Fixes a memory leak that occurs when trying to reconnect to a device repeatedly
+* Adds support for TypeScript
+* Removes support for node v0.10, v0.12 and iojs
+* Adds support for node v7
+
+### 2.1.2
+
+* `listen()` method will not exit until there's an explicit call to `close()`.
+* If a client disconnects, `listen()` can still handle new connections.
+* Calling `listen()` more than once is not allowed.
+* Better error handling in the server part.
+* New server and client test in the experiments folder
+
+### 2.1.1
+
+* Fixes a segmentation fault that can occur on OSX
+
+### 2.1.0
+
+* Adds asynchronous searching for devices
+* Asynchronous searching replaces the old synchronous `inquire` function so without touching your code you will be using the asynchronous search function.
+* Moves synchronous searching for devices to a new `inquireSync` function
+
+### 2.0.0
+
+* Improvements and API changes of the experimental RFCOMM server socket (Linux only)
+* No changes in the client
+
+### 1.3.1
+
+* Fixes compilation problem on Windows.
+* Adds experimental RFCOMM server socket (Linux only)
+
 ### 1.2.6
 
 * Fixes a critical [runtime error](https://github.com/eelcocramer/node-bluetooth-serial-port/issues/83) on all platforms.

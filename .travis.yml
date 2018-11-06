@@ -8,14 +8,11 @@ os:
 
 env:
   matrix:
-    - export NODE_VERSION="0.10"
-    - export NODE_VERSION="0.12"
-    - export NODE_VERSION="iojs-v1.0"
-    - export NODE_VERSION="iojs-v1"
-    - export NODE_VERSION="iojs-v2"
-    - export NODE_VERSION="iojs-v3"
-    - export NODE_VERSION="4.0"
-    - export NODE_VERSION="5.0"
+    - export NODE_VERSION="6"
+    - export NODE_VERSION="7"
+    - export NODE_VERSION="8"
+    - export NODE_VERSION="9"
+    - export NODE_VERSION="10"
 
 matrix:
   fast-finish: true
@@ -25,8 +22,6 @@ addons:
     sources:
       - ubuntu-toolchain-r-test
     packages:
-      - gcc-4.7
-      - g++-4.7
       - libbluetooth-dev
 
 before_install:
@@ -35,14 +30,10 @@ before_install:
   - nvm install $NODE_VERSION
   - nvm use $NODE_VERSION
   - npm config set python `which python`
-  - if [ $TRAVIS_OS_NAME == "linux" ]; then
-      export CC="gcc-4.7";
-      export CXX="g++-4.7";
-      export LINK="gcc-4.7";
-      export LINKXX="g++-4.7";
-    fi
   - gcc --version
   - g++ --version
+  - npm --version
+  - node --version
 
 script:
   - npm install
