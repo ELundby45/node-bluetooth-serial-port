@@ -189,6 +189,9 @@ static NSLock *globalConnectLock = nil;
 		IOBluetoothDevice *device = [IOBluetoothDevice deviceWithAddressString:address];
 
 		if (device != nil) {
+			if (device.isConnected && device.isIncoming) {
+				[device closeConnection];
+			}
 			IOBluetoothRFCOMMChannel *channel = [[IOBluetoothRFCOMMChannel alloc] init];
             [globalConnectLock lock];
 			if ([device openRFCOMMChannelSync: &channel withChannelID:[channelID intValue] delegate: self] == kIOReturnSuccess) {
