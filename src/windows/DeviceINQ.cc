@@ -367,7 +367,7 @@ NAN_METHOD(DeviceINQ::ListPairedDevices) {
 
 
     // Construct windows socket bluetooth variables
-    DWORD flags = LUP_CONTAINERS | LUP_RETURN_ALL;// LUP_RETURN_NAME | LUP_RETURN_ADDR | LUP_RES_SERVICE;
+    DWORD flags = LUP_CONTAINERS | LUP_RETURN_NAME | LUP_RETURN_ADDR;
     DWORD querySetSize = sizeof(WSAQUERYSET);
     WSAQUERYSET *querySet = (WSAQUERYSET *)malloc(querySetSize);
     if (querySet == nullptr) {
@@ -390,8 +390,7 @@ NAN_METHOD(DeviceINQ::ListPairedDevices) {
             // For each bluetooth service retrieve its corresponding details
             lookupServiceError = WSALookupServiceNext(lookupServiceHandle, flags, &querySetSize, querySet);
 
-            // only list devices that are authenticated, paired or bonded
-            if (lookupServiceError != SOCKET_ERROR && (querySet->dwOutputFlags & BTHNS_RESULT_DEVICE_AUTHENTICATED)) {
+            if (lookupServiceError != SOCKET_ERROR) {
                 char address[40] = { 0 };
                 DWORD addressLength = _countof(address);
                 SOCKADDR_BTH *bluetoothSocketAddress = (SOCKADDR_BTH *)querySet->lpcsaBuffer->RemoteAddr.lpSockaddr;
@@ -416,63 +415,12 @@ NAN_METHOD(DeviceINQ::ListPairedDevices) {
                     deviceObj->Set(Nan::New("name").ToLocalChecked(), Nan::New(querySet->lpszServiceInstanceName).ToLocalChecked());
                     deviceObj->Set(Nan::New("address").ToLocalChecked(), addressString.ToLocalChecked());
 
-                    Local<Array> servicesArray = Local<Array>(Nan::New<Array>());
-                    {
-                        DWORD querySetSize2 = sizeof(WSAQUERYSET);
-                        WSAQUERYSET *querySet2 = (WSAQUERYSET *)malloc(querySetSize2);
-                        if (querySet2 == nullptr) {
-                            Nan::ThrowError("Out of memory: Unable to allocate memory resource for inquiry");
-                        }
+                    Local<Array> servicesArray = Nan::New<v8::Array>((int)1);
+                    Local<Object> serviceObj = Nan::New<v8::Object>();
 
-                        ZeroMemory(querySet2, querySetSize2);
-                        querySet2->dwSize = querySetSize2;
-                        querySet2->lpszContext = address;
-                        GUID protocol = RFCOMM_PROTOCOL_UUID ; // L2CAP_PROTOCOL_UUID;
-                        querySet2->lpServiceClassId = &protocol;
-                        querySet2->dwNameSpace = NS_BTH;
-
-                        DWORD flags2 = LUP_FLUSHCACHE |LUP_RETURN_NAME | LUP_RETURN_TYPE | LUP_RETURN_ADDR | LUP_RETURN_BLOB | LUP_RETURN_COMMENT;
-                        HANDLE lookupServiceHandle2;
-
-                        int place = 0;
-                        int lookupServiceError2 = WSALookupServiceBegin(querySet2, flags2, &lookupServiceHandle2);
-                        if (lookupServiceError2 != SOCKET_ERROR) {
-                            bool inquiryComplete2 = false;
-                            while(!inquiryComplete2) {
-                                lookupServiceError2 = WSALookupServiceNext(lookupServiceHandle2, flags2, &querySetSize2, querySet2);
-                                if (lookupServiceError2 != SOCKET_ERROR ) {
-                                    int port = (int)((SOCKADDR_BTH *)querySet2->lpcsaBuffer->RemoteAddr.lpSockaddr)->port;
-                                    Local<Object> serviceObj = Nan::New<v8::Object>();
-                                    serviceObj->Set(Nan::New("channel").ToLocalChecked(), Nan::New(port));
-                                    serviceObj->Set(Nan::New("name").ToLocalChecked(), Nan::New(querySet2->lpszServiceInstanceName).ToLocalChecked());
-                                    servicesArray->Set(place++, serviceObj);
-                                } else {
-                                    int lookupServiceErrorNumber = WSAGetLastError();
-                                    if (lookupServiceErrorNumber == WSAEFAULT) {
-                                        free(querySet2);
-                                        querySet2 = (WSAQUERYSET *)malloc(querySetSize2);
-                                        if (querySet2 == nullptr) {
-                                            WSALookupServiceEnd(lookupServiceHandle2);
-                                            Nan::ThrowError("Out of memory: Unable to allocate memory resource for inquiry");
-                                        }
-                                    } else if (lookupServiceErrorNumber == WSA_E_NO_MORE) {
-                                        // No more services where found
-                                        inquiryComplete2 = true;
-                                    } else {
-                                        // Unhandled error
-                                        inquiryComplete2 = true;
-                                    }
-                                }
-                            }
-                        } else {
-                            int lookupServiceErrorNumber = WSAGetLastError();
-                            if (lookupServiceErrorNumber != WSASERVICE_NOT_FOUND) {
-                                free(querySet);
-                                Nan::ThrowError("Unable to initiate client device inquiry");
-                            }
-                        }
-                        free(querySet2);
-                    }
+                    serviceObj->Set(Nan::New("channel").ToLocalChecked(), Nan::New((int)1));
+                    serviceObj->Set(Nan::New("name").ToLocalChecked(), Nan::New("SPP").ToLocalChecked());
+                    servicesArray->Set(0, serviceObj);
 
                     deviceObj->Set(Nan::New("services").ToLocalChecked(), servicesArray);
                     resultArray->Set(i, deviceObj);
