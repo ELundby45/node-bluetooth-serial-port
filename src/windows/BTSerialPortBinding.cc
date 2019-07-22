@@ -207,7 +207,7 @@ void BTSerialPortBinding::EIO_AfterRead(uv_work_t *req) {
     baton = nullptr;
 }
 
-void BTSerialPortBinding::Init(Handle<Object> target) {
+void BTSerialPortBinding::Init(Local<Object> target) {
     Nan::HandleScope scope;
 
     Local<FunctionTemplate> t = Nan::New<FunctionTemplate>(New);
