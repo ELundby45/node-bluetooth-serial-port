@@ -9,11 +9,11 @@ If you have any problems make sure to [checkout the FAQ](https://github.com/eelc
 
 ## New in the last release
 
-* Adds support for node v10
+* Fixes an error where the module would not return correctly when parameter assertion would fail.
 
 Check the [release notes](RELEASE_NOTES.md) for an overview of the change history.
 
-## Pre-requests on Linux
+## Prerequisites on Linux
 
 * Needs Bluetooth development packages to build
 
@@ -41,11 +41,11 @@ sudo systemctl daemon-reload
 sudo systemctl restart bluetooth
 ```
 
-## Pre-request on macOS
+## Prerequisites on macOS
 
 * Needs Xcode and Xcode command line tools installed.
 
-## Pre-request on Windows
+## Prerequisites on Windows
 
 * Needs Visual Studio (Visual C++) and its command line tools installed.
 * Needs Python 2.x installed and accessible from the command line path.
@@ -71,7 +71,7 @@ btSerial.on('found', function(address, name) {
 		btSerial.connect(address, channel, function() {
 			console.log('connected');
 
-			btSerial.write(new Buffer('my data', 'utf-8'), function(err, bytesWritten) {
+			btSerial.write(Buffer.from('my data', 'utf-8'), function(err, bytesWritten) {
 				if (err) console.log(err);
 			});
 
@@ -107,7 +107,7 @@ server.on('data', function(buffer) {
     // ...
 
     console.log('Sending data to the client');
-    server.write(new Buffer('...'), function (err, bytesWritten) {
+    server.write(Buffer.from('...'), function (err, bytesWritten) {
         if (err) {
             console.log('Error!');
         } else {
@@ -133,7 +133,7 @@ Emitted when data is read from the serial port connection.
 
 * buffer - the data that was read into a [Buffer](http://nodejs.org/api/buffer.html) object.
 
-### Event: ('closed')
+#### Event: ('closed')
 
 Emitted when a connection was closed either by the user (i.e. calling `close` or remotely).
 
@@ -225,7 +225,11 @@ Writes data from a buffer to a connection.
 
 #### BluetoothSerialPortServer.close()
 
-Stops the server
+Stops the server.
+
+#### BluetoothSerialPortServer.disconnectClient()
+
+Disconnects the currently-connected client and re-listens and re-publishes to SDP.
 
 #### BluetoothSerialPortServer.isOpen()
 
@@ -237,9 +241,13 @@ Emitted when data is read from the serial port connection.
 
 * buffer - the data that was read into a [Buffer](http://nodejs.org/api/buffer.html) object.
 
-### Event: ('closed')
+#### Event: ('disconnected')
 
-Emitted when a connection was closed either by the user (i.e. calling `close` or remotely).
+Emitted when a connection was disconnected (i.e. from calling `disconnectClient` or if the bluetooth device disconnects (turned off or goes out of range)).
+
+#### Event: ('closed')
+
+Emitted when the server is closed (i.e. from calling `close` or as the result of a non-disconnect error).
 
 #### Event: ('failure', err)
 
@@ -249,14 +257,14 @@ Emitted when reading from the serial port connection results in an error. The co
 
 ## Typescript support
 
-The type script declaration file is bundled with this module so you can use it without needing to `npm install @types/bluetooth-serial-port`
+The type script declaration file is bundled with this module.
 
 ```typescript
-import btSerial = require("bluetooth-serial-port");
+import * as btSerial from "bluetooth-serial-port";
 
 btSerial.findSerialPortChannel(address: string, (channel: number) => {
     btSerial.connect(address: string, channel: number, () => {
-        btSerial.write(new Buffer("yes"), (err) => {
+        btSerial.write(Buffer.from("yes"), (err) => {
 	    if (err) {
                 console.error(err);
             }

@@ -1,5 +1,30 @@
 ## RELEASE NOTES
 
+### 2.2.4
+
+* Fixes an error where the module would not return correctly when parameter assertion would fail.
+
+### 2.2.3
+
+* Fixes regression when closing a connection
+
+### 2.2.2
+
+* Adds the status code to the error message when a connection fails
+* Fixes typescript example
+
+### 2.2.1
+
+* Fixes regression
+
+### 2.2.0
+
+* Adds support for multiple serial port servers [#197](https://github.com/eelcocramer/node-bluetooth-serial-port/pull/197)
+
+### 2.1.8
+
+* Fixes issue #193 where, on Linux, not all bytes where written to the connection. In this fix the Linux implementation now mimics the other implementations.
+
 ### 2.1.7
 
 * Adds support for node v10
